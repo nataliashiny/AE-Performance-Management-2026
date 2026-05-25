@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AE Performance Management | Leadership View | CVS Health</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<style>
+  :root {
+    --cvs-red: #CC0000;
+    --cvs-blue: #003087;
+    --cvs-light: #f5f5f5;
+    --cvs-border: #ddd;
+    --text-dark: #1a1a1a;
+    --text-mid: #555;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: var(--text-dark); }
+
+  header {
+    background: var(--cvs-red);
+    color: #fff;
+    padding: 14px 28px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  header .brand { font-size: 1.35rem; font-weight: 700; letter-spacing: 0.5px; }
+  header .subtitle { font-size: 0.9rem; opacity: 0.88; margin-top: 2px; }
+  header .as-of { margin-left: auto; font-size: 0.8rem; opacity: 0.8; text-align: right; }
+
+  /* Tab nav */
+  .tab-nav {
+    background: var(--cvs-blue);
+    padding: 0 28px;
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  .tab-nav::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    padding: 13px 22px;
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.7);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    letter-spacing: 0.2px;
+  }
+  .tab-btn:hover { color: #fff; background: rgba(255,255,255,0.07); }
+  .tab-btn.active { color: #fff; border-bottom-color: var(--cvs-red); font-weight: 600; }
+
+  /* Tab panes */
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; }
+
+  .pane-content { padding: 24px 28px; max-width: 1440px; margin: 0 auto; }
+
+  /* KPI cards */
+  .kpi-row { display: flex; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+  .kpi-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 18px 22px;
+    flex: 1 1 150px;
+    border-top: 4px solid var(--cvs-red);
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  }
+  .kpi-card.blue { border-top-color: var(--cvs-blue); }
+  .kpi-card .kpi-value { font-size: 2.2rem; font-weight: 700; color: var(--cvs-red); line-height: 1; }
+  .kpi-card.blue .kpi-value { color: var(--cvs-blue); }
+  .kpi-card .kpi-label { font-size: 0.78rem; color: var(--text-mid); margin-top: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpi-card .kpi-sub { font-size: 0.72rem; color: #888; margin-top: 4px; }
+
+  /* Panels */
+  .panel {
+    background: #fff;
+    border-radius: 8px;
+    padding: 22px 26px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  }
+  .panel h2 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--cvs-blue);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 18px;
+    border-bottom: 2px solid var(--cvs-red);
+    padding-bottom: 8px;
+  }
+
+  .chart-row { display: flex; gap: 24px; flex-wrap: wrap; }
+  .chart-row .panel { flex: 1 1 300px; margin-bottom: 24px; }
+  .bar-chart svg { display: block; overflow: visible; }
+
+  /* Heatmap */
+  .legend-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 0.75rem; color: var(--text-mid); }
+  .legend-gradient {
+    width: 160px; height: 10px;
+    background: linear-gradient(to right, #fff5f5, #CC0000);
+    border: 1px solid #ddd;
+    border-radius: 2px;
+  }
+
+  /* Attention / succession tables */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .data-table th {
+    background: var(--cvs-blue);
+    color: #fff;
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    white-space: nowrap;
+  }
+  .data-table td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tbody tr:hover td { background: #f8f9fc; }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .pill-red    { background: #ffe0e0; color: #b71c1c; }
+  .pill-orange { background: #fff3e0; color: #e65100; }
+  .pill-green  { background: #e8f5e9; color: #1b5e20; }
+  .pill-blue   { background: #e3f2fd; color: #0d47a1; }
+  .pill-dark   { background: #e8eaf6; color: #283593; }
+  .pill-gray   { background: #f5f5f5; color: #616161; }
+  .pill-teal   { background: #e0f2f1; color: #004d40; }
+
+  /* Tooltip */
+  .tooltip {
+    position: fixed;
+    background: rgba(0,0,0,.82);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 5px;
+    font-size: 0.78rem;
+    pointer-events: none;
+    z-index: 999;
+    white-space: nowrap;
+    display: none;
+  }
+
+  #loading, #error {
+    text-align: center;
+    padding: 60px;
+    color: var(--text-mid);
+    font-size: 1.05rem;
+  }
+  #error { color: var(--cvs-red); }
+  .hidden { display: none !important; }
+  .empty-msg { color: #aaa; font-size: 0.85rem; font-style: italic; padding: 12px 0; }
+
+  /* Readiness filter chips */
+  .filter-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; align-items: center; }
+  .filter-chip {
+    padding: 5px 16px;
+    border-radius: 20px;
+    border: 2px solid #ddd;
+    background: #fff;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text-mid);
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+  }
+  .filter-chip:hover { border-color: var(--cvs-blue); color: var(--cvs-blue); }
+  .filter-chip.active { background: var(--cvs-blue); border-color: var(--cvs-blue); color: #fff; }
+  .filter-chip-label { font-size: 0.78rem; color: #aaa; margin-right: 4px; }
+  .clear-chip {
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1.5px solid #ddd;
+    background: transparent;
+    font-family: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+    color: #aaa;
+    transition: all 0.15s;
+  }
+  .clear-chip:hover { border-color: var(--cvs-red); color: var(--cvs-red); }
+
+  /* Nominees panel */
+  #ov-nominees-panel { display: none; }
+  #ov-nominees-panel.visible { display: block; }
+  .nominees-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .nominees-count {
+    display: inline-block;
+    background: var(--cvs-blue);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 12px;
+    margin-left: 10px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="brand">Analytics Engineering</div>
+    <div class="subtitle">Performance Management Dashboard &mdash; 2026 Leadership View</div>
+  </div>
+  <div class="as-of">As of May 20, 2026</div>
+</header>
+
+<div id="loading">Loading data&hellip;</div>
+<div id="error" class="hidden"></div>
+
+<div id="app" class="hidden">
+  <nav class="tab-nav" id="tab-nav"></nav>
+  <div id="tab-content"></div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ─── Constants ────────────────────────────────────────────────────────────────
+const LEVEL_ORDER = ['PRF1','PRF2','PRF3','MGR1','PRF4','MGR2','PRF5','MGR3','PRF6','MGR4','AVP','VP'];
+
+const RATING_ORDER = ['EP','HP','SP','MP','TNR','Not Rated'];
+const RATING_LABEL = {
+  EP: 'Exceptional (EP)', HP: 'High Performance (HP)', SP: 'Successful (SP)',
+  MP: 'Mixed (MP)', TNR: 'Too New to Rate', 'Not Rated': 'Not Rated'
+};
+const RATING_COLOR = {
+  EP: '#003087', HP: '#1565C0', SP: '#2196F3',
+  MP: '#FF9800', TNR: '#9E9E9E', 'Not Rated': '#BDBDBD'
+};
+
+const POTENTIAL_ORDER = ['High','Well placed','Emerging leader','Inconsistent performer','Not Assessed'];
+const POTENTIAL_COLOR = {
+  High: '#003087', 'Well placed': '#1976D2', 'Emerging leader': '#42A5F5',
+  'Inconsistent performer': '#EF5350', 'Not Assessed': '#BDBDBD'
+};
+
+const RISK_ORDER = ['High','Medium','Low'];
+const RISK_COLOR = { High: '#CC0000', Medium: '#FF9800', Low: '#4CAF50' };
+
+const READINESS_ORDER = ['Ready Now','1-2 Years','2+ Years','No change'];
+const READINESS_COLOR = {
+  'Ready Now': '#003087', '1-2 Years': '#1976D2',
+  '2+ Years': '#64B5F6', 'No change': '#BDBDBD'
+};
+
+// ─── Parsers ──────────────────────────────────────────────────────────────────
+function parseCSVRow(line) {
+  const result = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQ = !inQ; }
+    else if (ch === ',' && !inQ) { result.push(cur.trim()); cur = ''; }
+    else { cur += ch; }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+function simplifyLevel(raw) {
+  if (!raw) return null;
+  const m = raw.match(/[-]\s*(PRF\d|MGR\d|AVP|VP)\b/);
+  if (m) return m[1];
+  if (raw.includes('E1') || raw.toUpperCase().includes('VP')) return 'VP';
+  return null;
+}
+
+function simplifyRating(r) {
+  if (!r) return 'Not Rated';
+  if (r.includes('Exceptional')) return 'EP';
+  if (r.includes('High Performance')) return 'HP';
+  if (r.includes('Successful')) return 'SP';
+  if (r.includes('Mixed')) return 'MP';
+  if (r.includes('Too New')) return 'TNR';
+  return 'Not Rated';
+}
+
+function simplifyPotential(p) {
+  if (!p) return 'Not Assessed';
+  const known = ['High','Well placed','Inconsistent performer','Emerging leader'];
+  for (const k of known) if (p.toLowerCase().includes(k.toLowerCase())) return k;
+  return 'Not Assessed';
+}
+
+function simplifyRisk(r) {
+  if (!r) return null;
+  const l = r.toLowerCase();
+  if (l.includes('high')) return 'High';
+  if (l.includes('medium')) return 'Medium';
+  if (l.includes('low')) return 'Low';
+  return null;
+}
+
+function simplifyReadiness(r) {
+  if (!r) return 'No change';
+  if (r.includes('Ready Now')) return 'Ready Now';
+  if (r.match(/1.?2\s*[Yy]ear/)) return '1-2 Years';
+  if (r.match(/2\+?\s*[Yy]ear/)) return '2+ Years';
+  if (r.toLowerCase().includes('no anticipated')) return 'No change';
+  return 'No change';
+}
+
+// ─── Data processing ──────────────────────────────────────────────────────────
+function excelDateToStr(serial) {
+  if (!serial || serial.toString().trim() === '') return '—';
+  const n = +serial;
+  if (isNaN(n) || n < 1) return serial;
+  const d = new Date((n - 25569) * 86400000);
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function processData(csvText) {
+  if (csvText.charCodeAt(0) === 0xFEFF) csvText = csvText.slice(1);
+  const lines = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim());
+
+  // First pass: count nominations across every row per colleague
+  const nomCounts = {};
+  for (let i = 1; i < lines.length; i++) {
+    const row = parseCSVRow(lines[i]);
+    const id = row[0];
+    if (!id) continue;
+    if (row[20] && row[20].trim()) nomCounts[id] = (nomCounts[id] || 0) + 1;
+  }
+
+  // Second pass: build unique colleague records (first occurrence wins for all other fields)
+  const seen = new Set();
+  const colleagues = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const row = parseCSVRow(lines[i]);
+    const id = row[0];
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    colleagues.push({
+      id,
+      name:             row[1],
+      levelRaw:         row[2],
+      level:            simplifyLevel(row[2]),
+      businessTitle:    row[5],
+      isPeopleLeader:   (row[6] || '').trim().toLowerCase() === 'yes',
+      lastPromoted:     excelDateToStr(row[7]),
+      verticalLeader:   row[10] || '',
+      oneDown:          row[11] || '',
+      twoDown:          row[12] || '',
+      reportingManager: row[13] || '',
+      risk:             simplifyRisk(row[15]),
+      impact:           simplifyRisk(row[16]),
+      rating:           simplifyRating(row[17]),
+      potential:        simplifyPotential(row[18]),
+      readiness:        simplifyReadiness(row[19]),
+      nominationCount:  nomCounts[id] || 0,
+      nominated:        !!(nomCounts[id]),
+      successionCandidate: !!(row[21] && row[21].trim()),
+    });
+  }
+  return colleagues;
+}
+
+// ─── Chart utilities ──────────────────────────────────────────────────────────
+function renderBarChart(container, data, colorMap) {
+  if (!container || data.length === 0) return;
+  const W = container.clientWidth || 360;
+  const barH = 26, gap = 5;
+  const marginL = 160, marginR = 90, marginT = 4, marginB = 4;
+  const innerW = Math.max(W - marginL - marginR, 60);
+  const H = marginT + data.length * (barH + gap) + marginB;
+
+  const max = d3.max(data, d => d.count) || 1;
+  const xScale = d3.scaleLinear().domain([0, max]).range([0, innerW]);
+  const total = d3.sum(data, d => d.count) || 1;
+  const tip = document.getElementById('tooltip');
+
+  const svg = d3.select(container).append('svg').attr('width', W).attr('height', H);
+  const g = svg.append('g').attr('transform', `translate(${marginL},${marginT})`);
+
+  data.forEach((d, i) => {
+    const y = i * (barH + gap);
+    const barW = Math.max(xScale(d.count), d.count > 0 ? 2 : 0);
+    const color = colorMap[d.key] || '#999';
+
+    g.append('text')
+      .attr('x', -6).attr('y', y + barH / 2 + 4)
+      .attr('text-anchor', 'end').attr('font-size', 11).attr('fill', '#444')
+      .text(d.label || d.key);
+
+    g.append('rect')
+      .attr('x', 0).attr('y', y)
+      .attr('width', barW).attr('height', barH)
+      .attr('fill', color).attr('rx', 3)
+      .on('mousemove', (ev) => {
+        tip.style.display = 'block';
+        tip.style.left = (ev.clientX + 12) + 'px';
+        tip.style.top = (ev.clientY - 28) + 'px';
+        tip.textContent = `${d.label || d.key}: ${d.count} (${((d.count/total)*100).toFixed(1)}%)`;
+      })
+      .on('mouseleave', () => { tip.style.display = 'none'; });
+
+    if (d.count > 0) {
+      g.append('text')
+        .attr('x', barW + 6).attr('y', y + barH / 2 + 4)
+        .attr('font-size', 11).attr('font-weight', '600').attr('fill', '#333')
+        .text(`${d.count} (${((d.count/total)*100).toFixed(1)}%)`);
+    }
+  });
+}
+
+function countField(cols, field, order) {
+  const counts = {};
+  for (const c of cols) {
+    const v = c[field];
+    if (v) counts[v] = (counts[v] || 0) + 1;
+  }
+  return order.filter(k => counts[k]).map(k => ({ key: k, label: k, count: counts[k] }));
+}
+
+// ─── KPI helpers ──────────────────────────────────────────────────────────────
+function buildKPIs(cols) {
+  const total = cols.length;
+  const ep    = cols.filter(c => c.rating === 'EP').length;
+  const hp    = cols.filter(c => c.rating === 'HP').length;
+  const hiRI  = cols.filter(c => c.risk === 'High' && c.impact === 'High').length;
+  const hiPot = cols.filter(c => c.potential === 'High').length;
+  const succ  = cols.filter(c => c.successionCandidate).length;
+  const pl    = cols.filter(c => c.isPeopleLeader).length;
+  const pct   = v => total ? `${((v/total)*100).toFixed(1)}%` : '—';
+
+  return [
+    { v: total,    label: 'Total Colleagues',        sub: 'unique in org',                         blue: false },
+    { v: ep + hp,  label: 'EP + HP Performers',       sub: `EP: ${ep}  ·  HP: ${hp}`,              blue: false },
+    { v: hiPot,    label: 'High Potential',           sub: `${pct(hiPot)} of org`,                  blue: true  },
+    { v: hiRI,     label: 'High Risk / High Impact',  sub: 'critical retention focus',              blue: false },
+    { v: succ,     label: 'Succession Candidates',    sub: 'on file',                               blue: true  },
+    { v: pl,       label: 'People Leaders',           sub: `${pct(pl)} of org`,                    blue: true  },
+  ];
+}
+
+function buildLeaderKPIs(cols) {
+  const total    = cols.length;
+  const ep       = cols.filter(c => c.rating === 'EP').length;
+  const hp       = cols.filter(c => c.rating === 'HP').length;
+  const pl       = cols.filter(c => c.isPeopleLeader).length;
+  const readyNow = cols.filter(c => c.readiness === 'Ready Now').length;
+  const pct      = v => total ? `${((v/total)*100).toFixed(1)}%` : '—';
+  return [
+    { v: total,    label: 'Total Colleagues',    sub: 'in this org',              blue: false },
+    { v: pl,       label: 'People Leaders',       sub: `${pct(pl)} of org`,       blue: true  },
+    { v: ep + hp,  label: 'EP + HP Performers',  sub: `EP: ${ep}  ·  HP: ${hp}`, blue: false },
+    { v: readyNow, label: 'Role Change Readiness', sub: 'Ready Now',               blue: true  },
+  ];
+}
+
+function renderKPIRow(el, kpis) {
+  el.innerHTML = kpis.map(k => `
+    <div class="kpi-card${k.blue ? ' blue' : ''}">
+      <div class="kpi-value">${k.v}</div>
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-sub">${k.sub}</div>
+    </div>`).join('');
+}
+
+// ─── Heatmap (overview) ───────────────────────────────────────────────────────
+function renderHeatmap(container, cols) {
+  const matrix = {}, odTotals = {}, lvTotals = {};
+  for (const c of cols) {
+    if (!c.level || !c.oneDown) continue;
+    const od = c.oneDown, lv = c.level;
+    if (!matrix[od]) matrix[od] = {};
+    matrix[od][lv] = (matrix[od][lv] || 0) + 1;
+    odTotals[od]   = (odTotals[od]   || 0) + 1;
+    lvTotals[lv]   = (lvTotals[lv]   || 0) + 1;
+  }
+
+  const oneDowns     = Object.keys(odTotals).sort((a, b) => odTotals[b] - odTotals[a]);
+  const activeLevels = LEVEL_ORDER.filter(l => lvTotals[l]);
+  const maxCount     = Math.max(...oneDowns.flatMap(od => activeLevels.map(lv => matrix[od]?.[lv] || 0)), 1);
+  const colorScale   = d3.scaleSequential().domain([0, maxCount]).interpolator(d3.interpolateReds);
+  const tip          = document.getElementById('tooltip');
+
+  const cellW = 52, cellH = 36;
+  const mL = 200, mT = 60, mR = 90, mB = 20;
+  const W = mL + activeLevels.length * cellW + mR;
+  const H = mT + (oneDowns.length + 1) * cellH + mB;
+
+  const svg = d3.select(container).append('svg').attr('width', W).attr('height', H);
+  const g   = svg.append('g').attr('transform', `translate(${mL},${mT})`);
+
+  // Column headers
+  g.selectAll('.clbl').data(activeLevels).enter().append('text')
+    .attr('x', (d, i) => i * cellW + cellW / 2).attr('y', -10)
+    .attr('text-anchor', 'middle').attr('font-size', 11).attr('fill', '#333').text(d => d);
+  g.append('text')
+    .attr('x', activeLevels.length * cellW + cellW / 2).attr('y', -10)
+    .attr('text-anchor', 'middle').attr('font-size', 11).attr('fill', '#CC0000').attr('font-weight', '700')
+    .text('Total');
+
+  // Data rows
+  oneDowns.forEach((od, ri) => {
+    const y = ri * cellH;
+    g.append('text').attr('x', -8).attr('y', y + cellH / 2 + 4)
+      .attr('text-anchor', 'end').attr('font-size', 11).attr('fill', '#333').text(od);
+
+    activeLevels.forEach((lv, ci) => {
+      const val = matrix[od]?.[lv] || 0, x = ci * cellW;
+      const cg = g.append('g').attr('transform', `translate(${x},${y})`);
+      cg.append('rect').attr('width', cellW - 1).attr('height', cellH - 1)
+        .attr('fill', val === 0 ? '#f8f8f8' : colorScale(val))
+        .attr('stroke', '#e0e0e0').attr('stroke-width', 0.5).attr('rx', 2)
+        .on('mousemove', ev => {
+          tip.style.display = 'block';
+          tip.style.left = (ev.clientX + 12) + 'px';
+          tip.style.top  = (ev.clientY  - 28) + 'px';
+          tip.textContent = `${od} · ${lv}: ${val} colleague${val !== 1 ? 's' : ''}`;
+        })
+        .on('mouseleave', () => { tip.style.display = 'none'; });
+      if (val > 0) {
+        cg.append('text').attr('x', cellW / 2 - .5).attr('y', cellH / 2 + 4)
+          .attr('text-anchor', 'middle').attr('font-size', val >= 100 ? 10 : 12)
+          .attr('font-weight', '600').attr('fill', val > maxCount * 0.6 ? '#fff' : '#222').text(val);
+      }
+    });
+
+    // Row total
+    const tx = activeLevels.length * cellW, rt = odTotals[od] || 0;
+    g.append('rect').attr('x', tx).attr('y', y).attr('width', cellW - 1).attr('height', cellH - 1)
+      .attr('fill', '#fff0f0').attr('stroke', '#CC0000').attr('stroke-width', .8).attr('rx', 2);
+    g.append('text').attr('x', tx + cellW / 2).attr('y', y + cellH / 2 + 4)
+      .attr('text-anchor', 'middle').attr('font-size', 12).attr('font-weight', '700').attr('fill', '#CC0000').text(rt);
+  });
+
+  // Totals row
+  const ty = oneDowns.length * cellH;
+  g.append('text').attr('x', -8).attr('y', ty + cellH / 2 + 4)
+    .attr('text-anchor', 'end').attr('font-size', 11).attr('font-weight', '700').attr('fill', '#CC0000').text('Total');
+  activeLevels.forEach((lv, ci) => {
+    const val = lvTotals[lv] || 0, x = ci * cellW;
+    g.append('rect').attr('x', x).attr('y', ty).attr('width', cellW - 1).attr('height', cellH - 1)
+      .attr('fill', '#fff0f0').attr('stroke', '#CC0000').attr('stroke-width', .8).attr('rx', 2);
+    g.append('text').attr('x', x + cellW / 2).attr('y', ty + cellH / 2 + 4)
+      .attr('text-anchor', 'middle').attr('font-size', 12).attr('font-weight', '700').attr('fill', '#CC0000').text(val);
+  });
+  const grand = Object.values(odTotals).reduce((a, b) => a + b, 0);
+  g.append('rect')
+    .attr('x', activeLevels.length * cellW).attr('y', ty)
+    .attr('width', cellW - 1).attr('height', cellH - 1)
+    .attr('fill', '#CC0000').attr('rx', 2);
+  g.append('text')
+    .attr('x', activeLevels.length * cellW + cellW / 2).attr('y', ty + cellH / 2 + 4)
+    .attr('text-anchor', 'middle').attr('font-size', 13).attr('font-weight', '700').attr('fill', '#fff').text(grand);
+
+  container.insertAdjacentHTML('beforeend', `
+    <div class="legend-row">
+      <span>0</span>
+      <div class="legend-gradient"></div>
+      <span>${maxCount}</span>
+      <span style="margin-left:8px;color:#888">— count of unique colleagues</span>
+    </div>`);
+}
+
+// ─── Two-Down bar chart ───────────────────────────────────────────────────────
+function renderTwoDownChart(container, cols) {
+  const counts = {};
+  for (const c of cols) {
+    const td = c.twoDown || '(Direct)';
+    counts[td] = (counts[td] || 0) + 1;
+  }
+  const data = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => ({ key: k, label: k, count: v }));
+
+  const palette = ['#003087','#1565C0','#1976D2','#1E88E5','#2196F3','#42A5F5','#64B5F6','#90CAF9',
+                   '#0d47a1','#0277BD','#006064','#00838F','#00ACC1','#26C6DA'];
+  const colorMap = {};
+  data.forEach((d, i) => { colorMap[d.key] = palette[i % palette.length]; });
+  renderBarChart(container, data, colorMap);
+}
+
+// ─── Pill helpers ─────────────────────────────────────────────────────────────
+function pillRisk(r) {
+  if (r === 'High')   return `<span class="pill pill-red">${r}</span>`;
+  if (r === 'Medium') return `<span class="pill pill-orange">${r}</span>`;
+  if (r === 'Low')    return `<span class="pill pill-green">${r}</span>`;
+  return `<span class="pill pill-gray">—</span>`;
+}
+function pillRating(r) {
+  const map = { EP: 'pill-dark', HP: 'pill-blue', SP: 'pill-teal', MP: 'pill-orange', TNR: 'pill-gray', 'Not Rated': 'pill-gray' };
+  return `<span class="pill ${map[r] || 'pill-gray'}">${r}</span>`;
+}
+function pillPotential(p) {
+  if (p === 'High')                  return `<span class="pill pill-dark">${p}</span>`;
+  if (p === 'Well placed')           return `<span class="pill pill-blue">${p}</span>`;
+  if (p === 'Emerging leader')       return `<span class="pill pill-teal">${p}</span>`;
+  if (p === 'Inconsistent performer')return `<span class="pill pill-orange">${p}</span>`;
+  return `<span class="pill pill-gray">—</span>`;
+}
+
+// ─── Attention list table ─────────────────────────────────────────────────────
+function renderAttentionTable(container, cols) {
+  const riskScore = r => r === 'High' ? 2 : r === 'Medium' ? 1 : 0;
+  const atRisk = cols
+    .filter(c => c.risk === 'High' || c.impact === 'High')
+    .sort((a, b) =>
+      b.nominationCount - a.nominationCount ||
+      (riskScore(b.risk) + riskScore(b.impact)) - (riskScore(a.risk) + riskScore(a.impact)) ||
+      a.name.localeCompare(b.name)
+    );
+
+  if (atRisk.length === 0) {
+    container.innerHTML = '<div class="empty-msg">No high-risk or high-impact colleagues in this org.</div>';
+    return;
+  }
+
+  const rows = atRisk.map((c, i) => `
+    <tr>
+      <td style="text-align:center;font-weight:700;color:var(--cvs-blue)">${i + 1}</td>
+      <td style="text-align:center">
+        ${c.nominationCount > 0
+          ? `<span class="pill pill-dark" style="font-size:0.8rem;padding:3px 10px">${c.nominationCount}</span>`
+          : '<span style="color:#bbb">—</span>'}
+      </td>
+      <td><strong>${c.name}</strong></td>
+      <td>${c.levelRaw || '—'}</td>
+      <td>${c.twoDown || '—'}</td>
+      <td>${c.reportingManager || '—'}</td>
+      <td>${pillRating(c.rating)}</td>
+      <td>${pillPotential(c.potential)}</td>
+      <td>${pillRisk(c.risk)}</td>
+      <td>${pillRisk(c.impact)}</td>
+      <td>${c.readiness}</td>
+      <td>${c.successionCandidate ? '<span class="pill pill-dark">Yes</span>' : '—'}</td>
+    </tr>`).join('');
+
+  container.innerHTML = `
+    <p style="font-size:0.8rem;color:#888;margin-bottom:10px">
+      Showing ${atRisk.length} colleague${atRisk.length !== 1 ? 's' : ''} with High Risk of Loss or High Impact of Loss — sorted by nominations.
+    </p>
+    <div style="overflow-x:auto">
+    <table class="data-table">
+      <thead><tr>
+        <th>#</th><th>Nominations</th><th>Name</th><th>Level</th>
+        <th>Two Down</th><th>Reporting Manager</th>
+        <th>Rating</th><th>Potential</th>
+        <th>Risk of Loss</th><th>Impact of Loss</th>
+        <th>Role Readiness</th><th>Succession</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </div>`;
+}
+
+// ─── Succession candidates table ──────────────────────────────────────────────
+function renderSuccessionTable(container, cols) {
+  const candidates = cols
+    .filter(c => c.successionCandidate)
+    .sort((a, b) => b.nominationCount - a.nominationCount || a.name.localeCompare(b.name));
+
+  if (candidates.length === 0) {
+    container.innerHTML = '<div class="empty-msg">No succession candidates on file in this org.</div>';
+    return;
+  }
+
+  const rows = candidates.map((c, i) => `
+    <tr>
+      <td style="text-align:center;font-weight:700;color:var(--cvs-blue)">${i + 1}</td>
+      <td style="text-align:center">
+        ${c.nominationCount > 0
+          ? `<span class="pill pill-dark" style="font-size:0.8rem;padding:3px 10px">${c.nominationCount}</span>`
+          : '<span style="color:#bbb">—</span>'}
+      </td>
+      <td><strong>${c.name}</strong></td>
+      <td>${c.levelRaw || '—'}</td>
+      <td>${c.businessTitle || '—'}</td>
+      <td>${c.twoDown || '—'}</td>
+      <td>${pillRating(c.rating)}</td>
+      <td>${pillPotential(c.potential)}</td>
+      <td>${c.readiness}</td>
+    </tr>`).join('');
+
+  container.innerHTML = `
+    <div style="overflow-x:auto">
+    <table class="data-table">
+      <thead><tr>
+        <th>#</th><th>Nominations</th><th>Name</th><th>Level</th><th>Job Title</th><th>Two Down</th>
+        <th>Rating</th><th>Potential</th><th>Role Readiness</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </div>`;
+}
+
+// ─── Overview pane ────────────────────────────────────────────────────────────
+function buildOverviewHTML() {
+  const chips = READINESS_ORDER.map(k =>
+    `<button class="filter-chip" data-readiness="${k}">${k}</button>`
+  ).join('');
+
+  return `<div class="tab-pane active" id="tab-overview">
+    <div class="pane-content">
+
+      <!-- ── Role Change Readiness at the top ── -->
+      <div class="panel" style="border-top:4px solid var(--cvs-blue)">
+        <h2>Role Change Readiness</h2>
+        <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start">
+          <div style="flex:0 0 auto">
+            <div class="filter-chips" id="ov-readiness-chips" style="margin-bottom:14px">
+              <span class="filter-chip-label">Click to filter:</span>
+              ${chips}
+              <button class="clear-chip" id="ov-clear-chip" style="display:none">&times; Clear filter</button>
+            </div>
+            <div class="bar-chart" id="ov-readiness"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Nominees detail panel (shown on filter) ── -->
+      <div class="panel" id="ov-nominees-panel" style="border-top:4px solid var(--cvs-red);margin-top:-12px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <h2 style="margin-bottom:0;border-bottom:none;padding-bottom:0">
+            Colleagues &mdash; <span id="ov-nominees-title" style="color:var(--cvs-red)"></span>
+          </h2>
+          <span class="nominees-count" id="ov-nominees-count"></span>
+        </div>
+        <div id="ov-nominees-body"></div>
+      </div>
+
+      <!-- ── KPI summary ── -->
+      <div class="kpi-row" id="ov-kpi"></div>
+
+      <!-- ── Heatmap ── -->
+      <div class="panel">
+        <h2>Headcount by One Down Leader &amp; Job Level</h2>
+        <div id="ov-heatmap"></div>
+      </div>
+
+      <!-- ── Distribution charts ── -->
+      <div class="chart-row">
+        <div class="panel"><h2>Performance Rating Distribution</h2><div class="bar-chart" id="ov-perf"></div></div>
+        <div class="panel"><h2>Potential Distribution</h2><div class="bar-chart" id="ov-pot"></div></div>
+        <div class="panel"><h2>Risk of Loss</h2><div class="bar-chart" id="ov-risk"></div></div>
+      </div>
+      <div class="chart-row">
+        <div class="panel"><h2>Impact of Loss</h2><div class="bar-chart" id="ov-impact"></div></div>
+      </div>
+
+    </div>
+  </div>`;
+}
+
+// ─── Readiness nominees table ─────────────────────────────────────────────────
+function renderReadinessNominees(cols, key) {
+  const people = cols
+    .filter(c => c.readiness === key)
+    .sort((a, b) =>
+      b.nominationCount - a.nominationCount ||
+      a.name.localeCompare(b.name)
+    );
+
+  const panel = document.getElementById('ov-nominees-panel');
+  document.getElementById('ov-nominees-title').textContent = key;
+  document.getElementById('ov-nominees-count').textContent = people.length + ' colleague' + (people.length !== 1 ? 's' : '');
+
+  if (people.length === 0) {
+    document.getElementById('ov-nominees-body').innerHTML = '<div class="empty-msg">No colleagues found for this readiness level.</div>';
+    panel.classList.add('visible');
+    return;
+  }
+
+  const rows = people.map((c, i) => `
+    <tr>
+      <td style="text-align:center;font-weight:700;color:var(--cvs-blue)">${i + 1}</td>
+      <td><strong>${c.name}</strong></td>
+      <td>${c.levelRaw || '—'}</td>
+      <td>${c.businessTitle || '—'}</td>
+      <td>${c.lastPromoted || '—'}</td>
+      <td>${c.oneDown || '—'}</td>
+      <td>${c.twoDown || '—'}</td>
+      <td>${c.reportingManager || '—'}</td>
+      <td>${pillRating(c.rating)}</td>
+      <td>${pillPotential(c.potential)}</td>
+      <td>${pillRisk(c.risk)}</td>
+      <td>${pillRisk(c.impact)}</td>
+      <td>${c.isPeopleLeader ? '<span class="pill pill-teal">Yes</span>' : '—'}</td>
+      <td>${c.successionCandidate ? '<span class="pill pill-dark">Yes</span>' : '—'}</td>
+    </tr>`).join('');
+
+  document.getElementById('ov-nominees-body').innerHTML = `
+    <div style="overflow-x:auto">
+    <table class="data-table">
+      <thead><tr>
+        <th>#</th><th>Name</th><th>Level</th><th>Job Title</th><th>Last Promoted</th>
+        <th>One Down</th><th>Two Down</th><th>Reporting Manager</th>
+        <th>Rating</th><th>Potential</th>
+        <th>Risk of Loss</th><th>Impact of Loss</th>
+        <th>People Leader</th><th>Succession</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </div>`;
+
+  panel.classList.add('visible');
+}
+
+function renderLeaderReadinessNominees(id, org, key) {
+  const people = org
+    .filter(c => c.readiness === key)
+    .sort((a, b) => b.nominationCount - a.nominationCount || a.name.localeCompare(b.name));
+
+  const panel = document.getElementById(`${id}-nominees-panel`);
+  document.getElementById(`${id}-nominees-title`).textContent = key;
+  document.getElementById(`${id}-nominees-count`).textContent = people.length + ' colleague' + (people.length !== 1 ? 's' : '');
+
+  if (people.length === 0) {
+    document.getElementById(`${id}-nominees-body`).innerHTML = '<div class="empty-msg">No colleagues found for this readiness level.</div>';
+    panel.classList.add('visible');
+    return;
+  }
+
+  const rows = people.map((c, i) => `
+    <tr>
+      <td style="text-align:center;font-weight:700;color:var(--cvs-blue)">${i + 1}</td>
+      <td><strong>${c.name}</strong></td>
+      <td>${c.levelRaw || '—'}</td>
+      <td>${c.businessTitle || '—'}</td>
+      <td>${c.lastPromoted || '—'}</td>
+      <td>${c.twoDown || '—'}</td>
+      <td>${c.reportingManager || '—'}</td>
+      <td>${pillRating(c.rating)}</td>
+      <td>${pillPotential(c.potential)}</td>
+      <td>${pillRisk(c.risk)}</td>
+      <td>${pillRisk(c.impact)}</td>
+      <td>${c.isPeopleLeader ? '<span class="pill pill-teal">Yes</span>' : '—'}</td>
+      <td>${c.successionCandidate ? '<span class="pill pill-dark">Yes</span>' : '—'}</td>
+    </tr>`).join('');
+
+  document.getElementById(`${id}-nominees-body`).innerHTML = `
+    <div style="overflow-x:auto">
+    <table class="data-table">
+      <thead><tr>
+        <th>#</th><th>Name</th><th>Level</th><th>Job Title</th><th>Last Promoted</th>
+        <th>Two Down</th><th>Reporting Manager</th>
+        <th>Rating</th><th>Potential</th>
+        <th>Risk Of Loss</th><th>Impact Of Loss</th>
+        <th>People Leader</th><th>Succession</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    </div>`;
+
+  panel.classList.add('visible');
+}
+
+function renderOverviewPane(cols) {
+  renderKPIRow(document.getElementById('ov-kpi'), buildKPIs(cols));
+  renderHeatmap(document.getElementById('ov-heatmap'), cols);
+
+  const perfData = RATING_ORDER
+    .filter(k => cols.some(c => c.rating === k))
+    .map(k => ({ key: k, label: RATING_LABEL[k], count: cols.filter(c => c.rating === k).length }));
+  renderBarChart(document.getElementById('ov-perf'), perfData, RATING_COLOR);
+
+  renderBarChart(document.getElementById('ov-pot'),      countField(cols, 'potential', POTENTIAL_ORDER), POTENTIAL_COLOR);
+  renderBarChart(document.getElementById('ov-risk'),     countField(cols, 'risk', RISK_ORDER).map(d => ({...d, label: d.key + ' Risk'})),   RISK_COLOR);
+  renderBarChart(document.getElementById('ov-impact'),   countField(cols, 'impact', RISK_ORDER).map(d => ({...d, label: d.key + ' Impact'})), RISK_COLOR);
+  renderBarChart(document.getElementById('ov-readiness'),countField(cols, 'readiness', READINESS_ORDER), READINESS_COLOR);
+
+  // Wire up readiness filter chips
+  const chipsEl   = document.getElementById('ov-readiness-chips');
+  const clearBtn  = document.getElementById('ov-clear-chip');
+  const nomPanel  = document.getElementById('ov-nominees-panel');
+
+  function applyFilter(key) {
+    chipsEl.querySelectorAll('.filter-chip').forEach(b => {
+      const isActive = b.dataset.readiness === key;
+      b.classList.toggle('active', isActive);
+      if (isActive) {
+        b.style.background = READINESS_COLOR[key] || 'var(--cvs-blue)';
+        b.style.borderColor = READINESS_COLOR[key] || 'var(--cvs-blue)';
+      } else {
+        b.style.background = '';
+        b.style.borderColor = '';
+      }
+    });
+    clearBtn.style.display = 'inline-block';
+    renderReadinessNominees(cols, key);
+  }
+
+  function clearFilter() {
+    chipsEl.querySelectorAll('.filter-chip').forEach(b => {
+      b.classList.remove('active');
+      b.style.background = '';
+      b.style.borderColor = '';
+    });
+    clearBtn.style.display = 'none';
+    nomPanel.classList.remove('visible');
+  }
+
+  chipsEl.addEventListener('click', e => {
+    const chip = e.target.closest('.filter-chip');
+    if (chip) {
+      const key = chip.dataset.readiness;
+      if (chip.classList.contains('active')) { clearFilter(); } else { applyFilter(key); }
+    }
+  });
+  clearBtn.addEventListener('click', clearFilter);
+}
+
+// ─── Leader pane ──────────────────────────────────────────────────────────────
+function buildLeaderHTML(leader, idx) {
+  const id = `tl${idx}`;
+  return `<div class="tab-pane" id="tab-leader-${idx}">
+    <div class="pane-content">
+      <div class="kpi-row" id="${id}-kpi"></div>
+      <div class="chart-row">
+        <div class="panel"><h2>Org Distribution By Two Down</h2><div class="bar-chart" id="${id}-twodown"></div></div>
+        <div class="panel"><h2>Performance Rating EOY2025</h2><div class="bar-chart" id="${id}-perf"></div></div>
+        <div class="panel"><h2>Potential Distribution</h2><div class="bar-chart" id="${id}-pot"></div></div>
+      </div>
+      <div class="panel" style="border-top:4px solid var(--cvs-blue)">
+        <h2>Role Change Readiness</h2>
+        <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start">
+          <div style="flex:0 0 auto">
+            <div class="filter-chips" id="${id}-readiness-chips" style="margin-bottom:14px">
+              <span class="filter-chip-label">Click to filter:</span>
+              <button class="clear-chip" id="${id}-clear-chip" style="display:none">&times; Clear filter</button>
+            </div>
+            <div class="bar-chart" id="${id}-readiness"></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" id="${id}-nominees-panel" style="border-top:4px solid var(--cvs-red);margin-top:-12px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+          <h2 style="margin-bottom:0;border-bottom:none;padding-bottom:0">
+            Colleagues &mdash; <span id="${id}-nominees-title" style="color:var(--cvs-red)"></span>
+          </h2>
+          <span class="nominees-count" id="${id}-nominees-count"></span>
+        </div>
+        <div id="${id}-nominees-body"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderLeaderPane(leader, idx, cols) {
+  const id = `tl${idx}`;
+  const org = cols.filter(c => c.oneDown === leader);
+
+  renderKPIRow(document.getElementById(`${id}-kpi`), buildLeaderKPIs(org));
+
+  const perfData = RATING_ORDER
+    .filter(k => org.some(c => c.rating === k))
+    .map(k => ({ key: k, label: RATING_LABEL[k], count: org.filter(c => c.rating === k).length }));
+  renderBarChart(document.getElementById(`${id}-perf`), perfData, RATING_COLOR);
+
+  renderBarChart(document.getElementById(`${id}-pot`),      countField(org, 'potential', POTENTIAL_ORDER), POTENTIAL_COLOR);
+  renderTwoDownChart(document.getElementById(`${id}-twodown`), org);
+
+  // Role Change Readiness section
+  renderBarChart(document.getElementById(`${id}-readiness`), countField(org, 'readiness', READINESS_ORDER), READINESS_COLOR);
+
+  const chipsEl  = document.getElementById(`${id}-readiness-chips`);
+  const clearBtn = document.getElementById(`${id}-clear-chip`);
+  const nomPanel = document.getElementById(`${id}-nominees-panel`);
+
+  // Inject chip buttons before the clear button
+  READINESS_ORDER.forEach(k => {
+    const btn = document.createElement('button');
+    btn.className = 'filter-chip';
+    btn.dataset.readiness = k;
+    btn.textContent = k;
+    chipsEl.insertBefore(btn, clearBtn);
+  });
+
+  function applyFilter(key) {
+    chipsEl.querySelectorAll('.filter-chip').forEach(b => {
+      const isActive = b.dataset.readiness === key;
+      b.classList.toggle('active', isActive);
+      b.style.background  = isActive ? (READINESS_COLOR[key] || 'var(--cvs-blue)') : '';
+      b.style.borderColor = isActive ? (READINESS_COLOR[key] || 'var(--cvs-blue)') : '';
+    });
+    clearBtn.style.display = 'inline-block';
+    renderLeaderReadinessNominees(id, org, key);
+  }
+
+  function clearFilter() {
+    chipsEl.querySelectorAll('.filter-chip').forEach(b => {
+      b.classList.remove('active');
+      b.style.background = b.style.borderColor = '';
+    });
+    clearBtn.style.display = 'none';
+    nomPanel.classList.remove('visible');
+  }
+
+  chipsEl.addEventListener('click', e => {
+    const chip = e.target.closest('.filter-chip');
+    if (chip) {
+      chip.classList.contains('active') ? clearFilter() : applyFilter(chip.dataset.readiness);
+    }
+  });
+  clearBtn.addEventListener('click', clearFilter);
+
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+fetch('./data/ae-perf-0520.csv')
+  .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.text(); })
+  .then(csvText => {
+    const cols = processData(csvText);
+
+    // Unique One Down leaders sorted by headcount desc
+    const odCounts = {};
+    for (const c of cols) if (c.oneDown) odCounts[c.oneDown] = (odCounts[c.oneDown] || 0) + 1;
+    const leaders = Object.keys(odCounts).filter(l => l !== "Shyam's LT").sort((a, b) => odCounts[b] - odCounts[a]);
+
+    const tabNav     = document.getElementById('tab-nav');
+    const tabContent = document.getElementById('tab-content');
+
+    // Overview tab button
+    tabNav.insertAdjacentHTML('beforeend',
+      `<button class="tab-btn active" data-tab="tab-overview" title="Organization Overview">Overview</button>`);
+
+    // Overview pane HTML
+    tabContent.insertAdjacentHTML('beforeend', buildOverviewHTML());
+
+    // Leader tab buttons + pane HTML
+    leaders.forEach((leader, idx) => {
+      // Tab label: first name + last name (truncate if > 18 chars)
+      const parts = leader.trim().split(/\s+/);
+      let label = leader;
+      if (parts.length >= 2) label = parts[0] + ' ' + parts[parts.length - 1];
+      if (label.length > 18) label = parts[0][0] + '. ' + parts[parts.length - 1];
+
+      tabNav.insertAdjacentHTML('beforeend',
+        `<button class="tab-btn" data-tab="tab-leader-${idx}" title="${leader}">${label}</button>`);
+      tabContent.insertAdjacentHTML('beforeend', buildLeaderHTML(leader, idx));
+    });
+
+    // Tab switching with lazy render
+    const rendered = new Set();
+
+    function switchTab(tabId) {
+      tabNav.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      tabContent.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+
+      tabNav.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+
+      if (!rendered.has(tabId)) {
+        rendered.add(tabId);
+        if (tabId.startsWith('tab-leader-')) {
+          const idx = parseInt(tabId.replace('tab-leader-', ''), 10);
+          renderLeaderPane(leaders[idx], idx, cols);
+        }
+      }
+    }
+
+    tabNav.addEventListener('click', e => {
+      const btn = e.target.closest('.tab-btn');
+      if (btn) switchTab(btn.dataset.tab);
+    });
+
+    // Render overview (always first)
+    rendered.add('tab-overview');
+    renderOverviewPane(cols);
+
+    document.getElementById('loading').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+  })
+  .catch(err => {
+    document.getElementById('loading').classList.add('hidden');
+    const el = document.getElementById('error');
+    el.classList.remove('hidden');
+    el.textContent = `Failed to load data: ${err.message}. Run via: npx http-server . -p 8080`;
+  });
+</script>
+</body>
+</html>
